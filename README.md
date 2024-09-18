@@ -209,6 +209,33 @@ rse_params
 - decay_rate
 - top_k_for_document_selection: the number of documents to consider
 
+## Metadata query filters
+Certain vector DBs support metadata filtering when running a query (currently only ChromaDB). This allows you to have more control over what document(s) get searched. A common use case for this would be asking questions over a single document in a knowledge base, in which case you would supply the `doc_id` as a metadata filter.
+
+The format of the metadata filtering is an object with the following keys:
+
+ - field: str, # The metadata field to filter by
+ - operator: str, # The operator for filtering. Must be one of: 'equals', 'not_equals', 'in', 'not_in', 'greater_than', 'less_than', 'greater_than_equals', 'less_than_equals'
+ - value: str | int | float | list # If the value is a list, every item in the list must be of the same type
+
+#### Example
+
+```python
+# Filter with the "equals" operator
+metadata_filter = {
+    "field": "doc_id",
+    "operator": "equals",
+    "value": "test_id_1"
+}
+
+# Filter with the "in" operator
+metadata_filter = {
+    "field": "doc_id",
+    "operator": "in",
+    "value": ["test_id_1", "test_id_2"]
+}
+```
+
 ## Document upload flow
 Documents -> semantic sectioning -> chunking -> AutoContext -> embedding -> chunk and vector database upsert
 
@@ -219,3 +246,21 @@ Queries -> vector database search -> reranking -> RSE -> results
 You can join our [Discord](https://discord.gg/NTUVX9DmQ3) to ask questions, make suggestions, and discuss contributions.
 
 If you’re using (or planning to use) dsRAG in production, please fill out this short [form](https://forms.gle/RQ5qFVReonSHDcCu5) telling us about your use case. This helps us prioritize new features. In return I’ll give you my personal email address, which you can use for priority email support.
+
+# Private cloud deployment
+If you want to run dsRAG in production with minimal effort, reach out to us about our commercial offering, which is a managed private cloud deployment of dsRAG.
+
+Here are the high-level details of the offering:
+
+**Private cloud deployment (i.e. in your own AWS, Azure, or GCP account) of dsRAG.**
+- Deployed as a production-ready API with endpoints for adding and deleting documents, viewing upload status, querying, etc.
+- Unlimited number of KnowledgeBases. You can just pass in the kb_id with each API call to specify which one it’s for.
+- Document upload queue with configurable concurrency limits so you don’t have to worry about rate limiting document uploads in your application code.
+- VectorDB and ChunkDB are created and managed as part of the API, so you don’t have to set those up separately.
+- Could also be deployed directly into your customers’ cloud environments if needed.
+
+**Support**
+- We’ll help you customize the retrieval configuration and components for your use case and make sure everything runs smoothly and performs well.
+- Ongoing support and regular updates as needed.
+
+If this is something you’d like to learn more about, fill out this short [form](https://forms.gle/Z4n81qdwdpckqsct6) and we’ll reach out ASAP.

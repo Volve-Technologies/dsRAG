@@ -19,11 +19,13 @@ from dsrag.rse import (
     RSE_PARAMS_PRESETS,
 )
 from dsrag.database.vector import Vector, VectorDB, BasicVectorDB
+from dsrag.database.vector.types import MetadataFilter
 from dsrag.database.chunk import ChunkDB, BasicChunkDB
 from dsrag.embedding import Embedding, OpenAIEmbedding
 from dsrag.reranker import Reranker, CohereReranker
 from dsrag.llm import LLM, OpenAIChatAPI
-from dsrag.semantic_sectioning import get_sections
+from dsrag.sectioning_and_chunking.semantic_sectioning import get_sections
+from dsrag.document_parsing import parse_file, get_pages_from_chunks
 
 
 class KnowledgeBase:
@@ -171,7 +173,8 @@ class KnowledgeBase:
     def add_document(
         self,
         doc_id: str,
-        text: str,
+        text: str = "",
+        file_path: str = "",
         document_title: str = "",
         auto_context_config: dict = {},
         semantic_sectioning_config: dict = {},
@@ -184,6 +187,7 @@ class KnowledgeBase:
         Inputs:
         - doc_id: unique identifier for the document; a file name or path is a good choice
         - text: the full text of the document
+        - file_path: the path to the file to be uploaded. Supported file types are .txt, .md, .pdf, and .docx
         - document_title: the title of the document (if not provided, either the doc_id or an LLM-generated title will be used, depending on the auto_context_config)
         - auto_context_config: a dictionary with configuration parameters for AutoContext
             - use_generated_title: bool - whether to use an LLM-generated title if no title is provided (default is True)
@@ -198,10 +202,17 @@ class KnowledgeBase:
             - use_semantic_sectioning: if False, semantic sectioning will be skipped (default is True)
         - chunk_size: the maximum number of characters to include in each chunk
         - min_length_for_chunking: the minimum length of text to allow chunking (measured in number of characters); if the text is shorter than this, it will be added as a single chunk. If semantic sectioning is used, this parameter will be applied to each section. Setting this to a higher value than the chunk_size can help avoid unnecessary chunking of short documents or sections.
-        - document_type: the type of document being added (Can be any string you like. Useful for filtering documents later on.)
         - supp_id: supplementary ID for the document (Can be any string you like. Useful for filtering documents later on.)
-        - file_name: the name of the file that the document came from (if applicable)
+        - metadata: a dictionary of metadata to associate with the document - can use whatever keys you like
         """
+
+        if text == "" and file_path == "":
+            raise ValueError("Either text or file_path must be provided")
+
+        if text == "":
+            text, pdf_pages = parse_file(file_path)
+        else:
+            pdf_pages = None
 
         # verify that the document does not already exist in the KB - the doc_id should be unique
         if doc_id in self.chunk_db.get_all_doc_ids():
@@ -212,7 +223,7 @@ class KnowledgeBase:
         if semantic_sectioning_config.get("use_semantic_sectioning", True):
             llm_provider = semantic_sectioning_config.get("llm_provider", "openai")
             model = semantic_sectioning_config.get("model", "gpt-4o-mini")
-            sections = get_sections(text, llm_provider=llm_provider, model=model)
+            sections, _ = get_sections(text, llm_provider=llm_provider, model=model, language=self.kb_metadata["language"])
         else:
             sections = [
                 {
@@ -230,6 +241,7 @@ class KnowledgeBase:
                 self.auto_context_model,
                 text,
                 document_title_guidance=document_title_guidance,
+                language=self.kb_metadata["language"]
             )
         elif not document_title:
             document_title = doc_id
@@ -243,6 +255,7 @@ class KnowledgeBase:
                 text,
                 document_title=document_title,
                 document_summarization_guidance=document_summarization_guidance,
+                language=self.kb_metadata["language"]
             )
         else:
             document_summary = ""
@@ -269,6 +282,7 @@ class KnowledgeBase:
                     document_title=document_title,
                     section_title=section_title,
                     section_summarization_guidance=section_summarization_guidance,
+                    language=self.kb_metadata["language"]
                 )
             else:
                 section_summary = ""
@@ -301,6 +315,9 @@ class KnowledgeBase:
 
         print(f"Adding {len(chunks)} chunks to the database")
 
+        if pdf_pages is not None:
+            chunks = get_pages_from_chunks(text, pdf_pages, chunks)
+
         # prepare the chunks for embedding by prepending the chunk headers
         chunks_to_embed = []
         for i, chunk in enumerate(chunks):
@@ -314,7 +331,7 @@ class KnowledgeBase:
             chunks_to_embed.append(chunk_to_embed)
 
         # embed the chunks
-        if len(chunks) <= 50:
+        if len(chunks_to_embed) <= 50:
             # if the document is short, we can get all the embeddings at once
             chunk_embeddings = self.get_embeddings(
                 chunks_to_embed, input_type="document"
@@ -338,6 +355,8 @@ class KnowledgeBase:
                     "document_summary": chunk["document_summary"],
                     "section_title": chunk["section_title"],
                     "section_summary": chunk["section_summary"],
+                    "chunk_page_start": chunk.get("chunk_page_start", None),
+                    "chunk_page_end": chunk.get("chunk_page_end", None),
                 }
                 for i, chunk in enumerate(chunks)
             },
@@ -346,9 +365,9 @@ class KnowledgeBase:
         )
 
         # create metadata list to add to the vector database
-        metadata = []
+        vector_metadata = []
         for i, chunk in enumerate(chunks):
-            metadata.append(
+            vector_metadata.append(
                 {
                     "doc_id": doc_id,
                     "chunk_index": i,
@@ -359,11 +378,15 @@ class KnowledgeBase:
                         section_title=chunk["section_title"],
                         section_summary=chunk["section_summary"],
                     ),
+                    "chunk_page_start": chunk.get("chunk_page_start", ""),
+                    "chunk_page_end": chunk.get("chunk_page_end", ""),
+                    # Add the rest of the metadata to the vector metadata
+                    **metadata
                 }
             )
 
         # add the vectors and metadata to the vector database
-        self.vector_db.add_vectors(vectors=chunk_embeddings, metadata=metadata)
+        self.vector_db.add_vectors(vectors=chunk_embeddings, metadata=vector_metadata)
 
         self.save()  # save to disk after adding a document
 
@@ -398,7 +421,7 @@ class KnowledgeBase:
     def cosine_similarity(self, v1, v2):
         return np.dot(v1, v2)  # since the embeddings are normalized
 
-    def search(self, query: str, top_k: int) -> list:
+    def search(self, query: str, top_k: int, metadata_filter: Optional[MetadataFilter] = None) -> list:
         """
         Get top k most relevant chunks for a given query. This is where we interface with the vector database.
         - returns a list of dictionaries, where each dictionary has the following keys: `metadata` (which contains 'doc_id', 'chunk_index', 'chunk_text', and 'chunk_header') and `similarity`
@@ -407,7 +430,7 @@ class KnowledgeBase:
             [query], input_type="query"
         )[0]  # embed the query, and access the first element of the list since the query is a single string
         search_results = self.vector_db.search(
-            query_vector, top_k
+            query_vector, top_k, metadata_filter
         )  # do a vector database search
         if len(search_results) == 0:
             return []
@@ -416,12 +439,12 @@ class KnowledgeBase:
         )  # rerank search results using a reranker
         return search_results
 
-    def get_all_ranked_results(self, search_queries: list[str]):
+    def get_all_ranked_results(self, search_queries: list[str], metadata_filter: Optional[MetadataFilter] = None):
         """
         - search_queries: list of search queries
         """
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            futures = [executor.submit(self.search, query, 200) for query in search_queries]
+            futures = [executor.submit(self.search, query, 200, metadata_filter) for query in search_queries]
             
             all_ranked_results = []
             for future in futures:
@@ -429,6 +452,11 @@ class KnowledgeBase:
                 all_ranked_results.append(ranked_results)
         
         return all_ranked_results
+    
+    def get_segment_page_numbers(self, doc_id: str, chunk_start: int, chunk_end: int) -> tuple:
+        start_page_number, _ = self.chunk_db.get_chunk_page_numbers(doc_id, chunk_start)
+        _, end_page_number = self.chunk_db.get_chunk_page_numbers(doc_id, chunk_end - 1)
+        return start_page_number, end_page_number
 
     def get_segment_text_from_database(
         self, doc_id: str, chunk_start: int, chunk_end: int
@@ -446,6 +474,7 @@ class KnowledgeBase:
         search_queries: list[str],
         rse_params: Union[Dict, str] = "balanced",
         latency_profiling: bool = False,
+        metadata_filter: Optional[MetadataFilter] = None,
     ) -> list[dict]:
         """
         Inputs:
@@ -500,7 +529,7 @@ class KnowledgeBase:
         ) * overall_max_length_extension  # increase the overall max length for each additional query
 
         start_time = time.time()
-        all_ranked_results = self.get_all_ranked_results(search_queries=search_queries)
+        all_ranked_results = self.get_all_ranked_results(search_queries=search_queries, metadata_filter=metadata_filter)
         if latency_profiling:
             print(
                 f"get_all_ranked_results took {time.time() - start_time} seconds to run for {len(search_queries)} queries"
@@ -561,5 +590,12 @@ class KnowledgeBase:
                 segment_info["chunk_start"],
                 segment_info["chunk_end"],
             )
+            start_page_number, end_page_number = self.get_segment_page_numbers(
+                segment_info["doc_id"],
+                segment_info["chunk_start"],
+                segment_info["chunk_end"]
+            )
+            segment_info["chunk_page_start"] = start_page_number
+            segment_info["chunk_page_end"] = end_page_number
 
         return relevant_segment_info
