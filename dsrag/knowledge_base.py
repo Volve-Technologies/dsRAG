@@ -2,6 +2,7 @@ import numpy as np
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import os
 import time
+import logging
 import json
 from typing import Optional, Union, Dict
 import concurrent.futures
@@ -47,6 +48,7 @@ class KnowledgeBase:
     ):
         self.kb_id = kb_id
         self.storage_directory = os.path.expanduser(storage_directory)
+        logging.info(f"Storage: ${self.storage_directory}")
 
         if save_metadata_to_disk:
             # load the KB if it exists; otherwise, initialize it and save it to disk

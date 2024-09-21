@@ -1,12 +1,14 @@
-__import__('pysqlite3')
-import sys
-sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+#__import__('pysqlite3')
+#import sys
+#sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
 
 import cohere
 import os
 from typing import List
 from dsrag.knowledge_base import KnowledgeBase
 from dsrag.rse import get_best_segments
+from dsrag.reranker import CohereReranker
+from shared.database.get_databases import get_pinecone_db, get_chunk_db
 from scipy.stats import beta
 from dotenv import load_dotenv
 import numpy as np
@@ -46,8 +48,7 @@ def rerank_documents(query: str, documents: list) -> list:
 
     return similarity_scores, chunk_values
 
-def get_context(query: List[str], kb_id: str):
-    kb = KnowledgeBase(kb_id)
+def get_context(query: List[str], kb: KnowledgeBase):
     context = ""
     results = kb.query(query,
                        rse_params={
@@ -59,6 +60,16 @@ def get_context(query: List[str], kb_id: str):
     for result in results:
         context += result["text"] + "\n"
     return context
+
+def get_kb_non_english(kb_id, language: str):
+    reranker = CohereReranker(model="rerank-multilingual-v3.0")
+    #pc = get_pinecone_db(kb_id)
+    #postgres = get_chunk_db(kb_id)
+    #kb = KnowledgeBase(kb_id, vector_db=pc, chunk_db=postgres, language=language, reranker=reranker, save_metadata_to_disk=False)
+    kb = KnowledgeBase(kb_id, vector_db=None, chunk_db=None, language=language, reranker=reranker,
+                       save_metadata_to_disk=True)
+    return kb
+
 
 def get_context_test(query: str, kb: KnowledgeBase, doc_id: str):
     num_chunks = len(kb.chunk_db.data[doc_id])

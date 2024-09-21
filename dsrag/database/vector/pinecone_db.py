@@ -53,7 +53,7 @@ class PineconeDB(VectorDB):
         self.metric = metric
 
         # Initialize Pinecone
-        self.pc = Pinecone(api_key=os.environ.get("PINECONE_API_KEY"))
+        self.pc = Pinecone(api_key=os.environ.get("PINECONE_API_KEY"), load_plugins=False)
 
         # Create or connect to the index
         if self.index_name not in self.pc.list_indexes().names():
