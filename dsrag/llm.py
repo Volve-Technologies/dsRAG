@@ -59,7 +59,7 @@ class OpenAIChatAPI(LLM):
         return base_dict
 
 class AnthropicChatAPI(LLM):
-    def __init__(self, model: str = "claude-3-haiku-20240307", temperature: float = 0.2, max_tokens: int = 1000):
+    def __init__(self, model: str = "claude-3-haiku-20240307", temperature: float = 0.2, max_tokens: int = 1500):
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens

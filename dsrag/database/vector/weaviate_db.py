@@ -72,29 +72,16 @@ class WeaviateVectorDB(VectorDB):
                 additional_headers=additional_headers,
             )
         else:
-            connection_params = weaviate.connect.ConnectionParams.from_params(
-                http_host=http_host,
-                http_port=http_port,
-                http_secure=http_secure,
-                grpc_host=grpc_host,
-                grpc_port=grpc_port,
-                grpc_secure=grpc_secure,
-            )
-            self.client = weaviate.WeaviateClient(
-                connection_params=connection_params,
-                auth_client_secret=weaviate.auth.AuthApiKey(weaviate_secret),
-                additional_headers=additional_headers,
-                additional_config=weaviate.classes.init.AdditionalConfig(
-                    timeout=weaviate.classes.init.Timeout(
-                        init=init_timeout, query=query_timeout, insert=insert_timeout
-                    )
-                ),
-            )
+
+            self.client = weaviate.connect_to_wcs(
+                cluster_url=self.http_host,
+                auth_credentials=weaviate.auth.AuthApiKey(self.weaviate_secret))
 
         self.client.connect()
         self.collection = self.client.collections.get(
-            kb_id
-        )  # assume this creates a new collection if it doesn't exist
+            "dsrag"
+        )
+
 
     def close(self):
         """

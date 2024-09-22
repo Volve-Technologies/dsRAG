@@ -5,10 +5,13 @@
 import cohere
 import os
 from typing import List
+
+from dsrag.database.vector.types import MetadataFilter
 from dsrag.knowledge_base import KnowledgeBase
 from dsrag.rse import get_best_segments
+from dsrag.llm import AnthropicChatAPI
 from dsrag.reranker import CohereReranker
-from shared.database.get_databases import get_pinecone_db, get_chunk_db
+from shared.database.get_databases import get_pinecone_db, get_chunk_db, get_weaviate_db
 from scipy.stats import beta
 from dotenv import load_dotenv
 import numpy as np
@@ -48,26 +51,31 @@ def rerank_documents(query: str, documents: list) -> list:
 
     return similarity_scores, chunk_values
 
-def get_context(query: List[str], kb: KnowledgeBase):
+def get_context(query: List[str], kb: KnowledgeBase, metadata_filter: MetadataFilter):
     context = ""
+    doc_ids = set()
     results = kb.query(query,
                        rse_params={
-                           "max_length": 30,
-                           "overall_max_length": 50,
+                           "max_length": 300,
+                           "overall_max_length": 700,
                            "minimum_value": 0.01,
-                           "irrelevant_chunk_penalty": 0}
+                           "irrelevant_chunk_penalty": 0},
+                       metadata_filter=metadata_filter
                        )
     for result in results:
         context += result["text"] + "\n"
-    return context
+        doc_id = result["doc_id"]
+        doc_ids.add(str(doc_id))
+    return context, doc_ids
 
 def get_kb_non_english(kb_id, language: str):
     reranker = CohereReranker(model="rerank-multilingual-v3.0")
-    #pc = get_pinecone_db(kb_id)
-    #postgres = get_chunk_db(kb_id)
-    #kb = KnowledgeBase(kb_id, vector_db=pc, chunk_db=postgres, language=language, reranker=reranker, save_metadata_to_disk=False)
-    kb = KnowledgeBase(kb_id, vector_db=None, chunk_db=None, language=language, reranker=reranker,
-                       save_metadata_to_disk=True)
+    llm = AnthropicChatAPI()
+    vector = get_weaviate_db(kb_id)
+    postgres = get_chunk_db(kb_id)
+    kb = KnowledgeBase(kb_id, vector_db=vector, chunk_db=postgres, auto_context_model=llm, language=language, reranker=reranker, save_metadata_to_disk=False)
+    #kb = KnowledgeBase(kb_id, vector_db=None, chunk_db=postgres, language=language, reranker=reranker,
+    #                   save_metadata_to_disk=True)
     return kb
 
 

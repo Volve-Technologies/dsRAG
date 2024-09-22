@@ -2,7 +2,7 @@ import os
 import time
 import psycopg2
 from typing import Any, Optional
-
+import logging
 from dsrag.database.chunk.db import ChunkDB
 from dsrag.database.chunk.types import FormattedDocument
 
@@ -46,6 +46,7 @@ class PostgresDB(ChunkDB):
     def add_document(self, doc_id: str, chunks: dict[int, dict[str, Any]], supp_id: str = "",
                      metadata: dict = {}) -> None:
         # Add the docs to the PostgreSQL table
+        doc_id = str(doc_id)
         conn = psycopg2.connect(self.connection_string)
         c = conn.cursor()
         # Create a created on timestamp
@@ -88,6 +89,7 @@ class PostgresDB(ChunkDB):
 
     def remove_document(self, doc_id: str) -> None:
         # Remove the docs from the PostgreSQL table
+        doc_id = str(doc_id)
         conn = psycopg2.connect(self.connection_string)
         c = conn.cursor()
         c.execute("DELETE FROM documents WHERE doc_id=%s", (doc_id,))
@@ -98,6 +100,7 @@ class PostgresDB(ChunkDB):
             self, doc_id: str, include_content: bool = False
     ) -> Optional[FormattedDocument]:
         # Retrieve the document from the PostgreSQL table
+        doc_id = str(doc_id)
         conn = psycopg2.connect(self.connection_string)
         c = conn.cursor()
         columns = ["supp_id", "document_title", "document_summary", "created_on", "metadata"]
@@ -145,8 +148,28 @@ class PostgresDB(ChunkDB):
             metadata=metadata
         )
 
+    def get_chunk_text_range(self, doc_id: str, chunk_index_start: int, chunk_index_end: int) -> Optional[str]:
+        doc_id = str(doc_id)
+
+        # Retrieve the chunk text from the PostgreSQL table for the given range of chunk indices
+        conn = psycopg2.connect(self.connection_string)
+        c = conn.cursor()
+        c.execute(
+            "SELECT chunk_text FROM documents WHERE doc_id=%s AND chunk_index BETWEEN %s AND %s",
+            (doc_id, chunk_index_start, chunk_index_end)
+        )
+        results = c.fetchall()
+        conn.close()
+
+        if results:
+            # Concatenate all chunk_texts into a single string
+            chunk_texts = "\n".join([result[0] for result in results])
+            return chunk_texts
+        return None
+
     def get_chunk_text(self, doc_id: str, chunk_index: int) -> Optional[str]:
         # Retrieve the chunk text from the PostgreSQL table
+        doc_id = str(doc_id)
         conn = psycopg2.connect(self.connection_string)
         c = conn.cursor()
         c.execute(
@@ -157,9 +180,11 @@ class PostgresDB(ChunkDB):
         if result:
             return result[0]
         return None
-#####
+
+    #####
     def get_chunk_page_numbers(self, doc_id: str, chunk_index: int) -> Optional[tuple[int, int]]:
         # Retrieve the chunk page numbers from the sqlite table
+        doc_id = str(doc_id)
         conn = psycopg2.connect(self.connection_string)
         c = conn.cursor()
         c.execute(
@@ -173,12 +198,16 @@ class PostgresDB(ChunkDB):
 
     def get_document_title(self, doc_id: str, chunk_index: int) -> Optional[str]:
         # Retrieve the document title from the sqlite table
+        logging.info(f"doc_id: {doc_id}")
         conn = psycopg2.connect(self.connection_string)
         c = conn.cursor()
+        logging.info('Executing')
         c.execute(
-            f"SELECT document_title FROM documents WHERE doc_id=%s AND chunk_index=%s", (doc_id, chunk_index)
+            f"SELECT document_title FROM documents WHERE doc_id=%s AND chunk_index=%s", (str(doc_id), chunk_index)
         )
+        logging.info('Executed')
         result = c.fetchone()
+        logging.info(f"result: {result}")
         conn.close()
         if result:
             return result[0]
@@ -186,6 +215,7 @@ class PostgresDB(ChunkDB):
 
     def get_document_summary(self, doc_id: str, chunk_index: int) -> Optional[str]:
         # Retrieve the document summary from the sqlite table
+        doc_id = str(doc_id)
         conn = psycopg2.connect(self.connection_string)
         c = conn.cursor()
         c.execute(
@@ -199,6 +229,7 @@ class PostgresDB(ChunkDB):
 
     def get_section_title(self, doc_id: str, chunk_index: int) -> Optional[str]:
         # Retrieve the section title from the sqlite table
+        doc_id = str(doc_id)
         conn = psycopg2.connect(self.connection_string)
         c = conn.cursor()
         c.execute(
@@ -212,6 +243,7 @@ class PostgresDB(ChunkDB):
 
     def get_section_summary(self, doc_id: str, chunk_index: int) -> Optional[str]:
         # Retrieve the section summary from the sqlite table
+        doc_id = str(doc_id)
         conn = psycopg2.connect(self.connection_string)
         c = conn.cursor()
         c.execute(

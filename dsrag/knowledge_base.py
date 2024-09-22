@@ -98,6 +98,7 @@ class KnowledgeBase:
         vector_db: Optional[VectorDB],
         chunk_db: Optional[ChunkDB],
     ):
+        print(f"chunk_db is : {chunk_db}")
         self.embedding_model = embedding_model if embedding_model else OpenAIEmbedding()
         self.reranker = reranker if reranker else CohereReranker()
         self.auto_context_model = (
@@ -108,9 +109,7 @@ class KnowledgeBase:
             if vector_db
             else BasicVectorDB(self.kb_id, self.storage_directory)
         )
-        self.chunk_db = (
-            chunk_db if chunk_db else BasicChunkDB(self.kb_id, self.storage_directory)
-        )
+        self.chunk_db = chunk_db
         self.vector_dimension = self.embedding_model.dimension
 
     def save(self):
@@ -464,11 +463,7 @@ class KnowledgeBase:
         self, doc_id: str, chunk_start: int, chunk_end: int
     ) -> str:
         segment = f"{self.get_segment_header(doc_id=doc_id, chunk_index=chunk_start)}\n\n"  # initialize the segment with the segment header
-        for chunk_index in range(
-            chunk_start, chunk_end
-        ):  # NOTE: end index is non-inclusive
-            chunk_text = self.get_chunk_text(doc_id, chunk_index) or ""
-            segment += chunk_text
+        segment = self.chunk_db.get_chunk_text_range(doc_id, chunk_start, chunk_end)
         return segment.strip()
 
     def query(
@@ -542,6 +537,7 @@ class KnowledgeBase:
             top_k_for_document_selection=top_k_for_document_selection,
         )
 
+
         # verify that we have a valid meta-document - otherwise return an empty list of segments
         if len(document_splits) == 0:
             return []
@@ -592,11 +588,13 @@ class KnowledgeBase:
                 segment_info["chunk_start"],
                 segment_info["chunk_end"],
             )
+
             start_page_number, end_page_number = self.get_segment_page_numbers(
                 segment_info["doc_id"],
                 segment_info["chunk_start"],
                 segment_info["chunk_end"]
             )
+
             segment_info["chunk_page_start"] = start_page_number
             segment_info["chunk_page_end"] = end_page_number
 

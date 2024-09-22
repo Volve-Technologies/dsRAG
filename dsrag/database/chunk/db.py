@@ -49,6 +49,13 @@ class ChunkDB(ABC):
         pass
 
     @abstractmethod
+    def get_chunk_text_range(self, doc_id: str, chunk_index_start: int, chunk_index_end: int) -> Optional[str]:
+        """
+        Retrieve a specific chunk from a given document ID.
+        """
+        pass
+
+    @abstractmethod
     def get_chunk_page_numbers(self, doc_id: str, chunk_index: int) -> Optional[tuple[int, int]]:
         """
         Retrieve the page numbers of a specific chunk from a given document ID.
