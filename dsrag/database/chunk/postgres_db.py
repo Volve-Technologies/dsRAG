@@ -198,16 +198,12 @@ class PostgresDB(ChunkDB):
 
     def get_document_title(self, doc_id: str, chunk_index: int) -> Optional[str]:
         # Retrieve the document title from the sqlite table
-        logging.info(f"doc_id: {doc_id}")
         conn = psycopg2.connect(self.connection_string)
         c = conn.cursor()
-        logging.info('Executing')
         c.execute(
             f"SELECT document_title FROM documents WHERE doc_id=%s AND chunk_index=%s", (str(doc_id), chunk_index)
         )
-        logging.info('Executed')
         result = c.fetchone()
-        logging.info(f"result: {result}")
         conn.close()
         if result:
             return result[0]

@@ -463,7 +463,9 @@ class KnowledgeBase:
         self, doc_id: str, chunk_start: int, chunk_end: int
     ) -> str:
         segment = f"{self.get_segment_header(doc_id=doc_id, chunk_index=chunk_start)}\n\n"  # initialize the segment with the segment header
+        logging.warning(f"About to get the actual chunk range")
         segment = self.chunk_db.get_chunk_text_range(doc_id, chunk_start, chunk_end)
+        logging.warning(f"Got the segment")
         return segment.strip()
 
     def query(
@@ -582,6 +584,7 @@ class KnowledgeBase:
             relevant_segment_info[-1]["score"] = score
 
         # retrieve the actual text (including segment header) for each of the segments
+        logging.warning(f"About to get the segment text from the database (SQL) for the query: {search_queries}")
         for segment_info in relevant_segment_info:
             segment_info["text"] = self.get_segment_text_from_database(
                 segment_info["doc_id"],
@@ -597,5 +600,6 @@ class KnowledgeBase:
 
             segment_info["chunk_page_start"] = start_page_number
             segment_info["chunk_page_end"] = end_page_number
+        logging.warning(f"Got the segment text from the database (SQL) for the query: {search_queries}")
 
         return relevant_segment_info
