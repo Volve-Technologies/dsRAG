@@ -114,6 +114,7 @@ class PostgresDB(ChunkDB):
 
         conn.commit()
         conn.close()
+        self.put_connection(conn)
 
     def remove_document(self, doc_id: str) -> None:
         # Remove the docs from the PostgreSQL table
@@ -123,6 +124,7 @@ class PostgresDB(ChunkDB):
         c.execute("DELETE FROM documents WHERE doc_id=%s", (doc_id,))
         conn.commit()
         conn.close()
+        self.put_connection(conn)
 
     def get_document(
             self, doc_id: str, include_content: bool = False
@@ -141,6 +143,7 @@ class PostgresDB(ChunkDB):
         c.execute(query_statement, (doc_id,))
         results = c.fetchall()
         conn.close()
+        self.put_connection(conn)
 
         # If there are no results, return None
         if not results:
@@ -188,6 +191,7 @@ class PostgresDB(ChunkDB):
         )
         results = c.fetchall()
         conn.close()
+        self.put_connection(conn)
 
         if results:
             # Concatenate all chunk_texts into a single string
@@ -205,6 +209,7 @@ class PostgresDB(ChunkDB):
         )
         result = c.fetchone()
         conn.close()
+        self.put_connection(conn)
         if result:
             return result[0]
         return None
@@ -220,6 +225,7 @@ class PostgresDB(ChunkDB):
         )
         result = c.fetchone()
         conn.close()
+        self.put_connection(conn)
         if result:
             return result
         return None
@@ -233,6 +239,7 @@ class PostgresDB(ChunkDB):
         )
         result = c.fetchone()
         conn.close()
+        self.put_connection(conn)
         if result:
             return result[0]
         return None
@@ -247,6 +254,7 @@ class PostgresDB(ChunkDB):
         )
         result = c.fetchone()
         conn.close()
+        self.put_connection(conn)
         if result:
             return result[0]
         return None
@@ -261,6 +269,7 @@ class PostgresDB(ChunkDB):
         )
         result = c.fetchone()
         conn.close()
+        self.put_connection(conn)
         if result:
             return result[0]
         return None
@@ -275,6 +284,7 @@ class PostgresDB(ChunkDB):
         )
         result = c.fetchone()
         conn.close()
+        self.put_connection(conn)
         if result:
             return result[0]
         return None
@@ -291,6 +301,7 @@ class PostgresDB(ChunkDB):
             c.execute(query_statement)
         results = c.fetchall()
         conn.close()
+        self.put_connection(conn)
         return [result[0] for result in results]
 
     def get_document_count(self) -> int:
@@ -300,6 +311,7 @@ class PostgresDB(ChunkDB):
         c.execute("SELECT COUNT(DISTINCT doc_id) FROM documents")
         result = c.fetchone()
         conn.close()
+        self.put_connection(conn)
         if result is None:
             return 0
         return result[0]
@@ -311,6 +323,7 @@ class PostgresDB(ChunkDB):
         c.execute("SELECT SUM(chunk_length) FROM documents")
         result = c.fetchone()
         conn.close()
+        self.put_connection(conn)
         if result is None or result[0] is None:
             return 0
         return result[0]
@@ -322,6 +335,7 @@ class PostgresDB(ChunkDB):
         c.execute("TRUNCATE TABLE documents")
         conn.commit()
         conn.close()
+        self.put_connection(conn)
 
     def to_dict(self) -> dict[str, str]:
         return {
