@@ -4,6 +4,7 @@ import os
 import time
 import logging
 import json
+import uuid
 from typing import Optional, Union, Dict
 import concurrent.futures
 from dsrag.auto_context import (
@@ -48,7 +49,6 @@ class KnowledgeBase:
     ):
         self.kb_id = kb_id
         self.storage_directory = os.path.expanduser(storage_directory)
-        logging.info(f"Storage: ${self.storage_directory}")
 
         if save_metadata_to_disk:
             # load the KB if it exists; otherwise, initialize it and save it to disk
@@ -462,10 +462,11 @@ class KnowledgeBase:
     def get_segment_text_from_database(
         self, doc_id: str, chunk_start: int, chunk_end: int
     ) -> str:
-        segment = f"{self.get_segment_header(doc_id=doc_id, chunk_index=chunk_start)}\n\n"  # initialize the segment with the segment header
-        logging.warning(f"About to get the actual chunk range")
+        segment = f"{self.get_segment_header(doc_id=doc_id, chunk_index=chunk_start)}\n\n"
+        random_uuid = uuid.uuid4()
+        logging.debug(f"About to get the actual chunk range from the postgresql, uuid: {random_uuid}")
         segment = self.chunk_db.get_chunk_text_range(doc_id, chunk_start, chunk_end)
-        logging.warning(f"Got the segment")
+        logging.debug(f"Obtained the chunk range, uuid: {random_uuid}")
         return segment.strip()
 
     def query(
@@ -584,7 +585,6 @@ class KnowledgeBase:
             relevant_segment_info[-1]["score"] = score
 
         # retrieve the actual text (including segment header) for each of the segments
-        logging.warning(f"About to get the segment text from the database (SQL) for the query: {search_queries}")
         for segment_info in relevant_segment_info:
             segment_info["text"] = self.get_segment_text_from_database(
                 segment_info["doc_id"],
@@ -600,6 +600,5 @@ class KnowledgeBase:
 
             segment_info["chunk_page_start"] = start_page_number
             segment_info["chunk_page_end"] = end_page_number
-        logging.warning(f"Got the segment text from the database (SQL) for the query: {search_queries}")
 
         return relevant_segment_info

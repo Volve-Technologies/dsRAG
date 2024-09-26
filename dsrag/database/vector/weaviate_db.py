@@ -6,6 +6,8 @@ from typing import Optional
 import weaviate
 import weaviate.classes as wvc
 from weaviate.util import generate_uuid5
+from dsrag.database.vector.types import MetadataFilter
+import logging
 
 
 class WeaviateVectorDB(VectorDB):
@@ -78,10 +80,10 @@ class WeaviateVectorDB(VectorDB):
                 auth_credentials=weaviate.auth.AuthApiKey(self.weaviate_secret))
 
         self.client.connect()
+        self.collection_name = "dsrag_test"
         self.collection = self.client.collections.get(
-            "dsrag"
+            self.collection_name
         )
-
 
     def close(self):
         """
@@ -114,12 +116,14 @@ class WeaviateVectorDB(VectorDB):
                 doc_id = meta.get("doc_id", "")
                 chunk_text = meta.get("chunk_text", "")
                 chunk_index = meta.get("chunk_index", 0)
+                tender_or_bid_id = meta.get("tender_or_bid_id", "")
                 uuid = generate_uuid5(f"{doc_id}_{chunk_index}")
                 batch.add_object(
                     properties={
                         "content": chunk_text,
                         "doc_id": doc_id,
                         "chunk_index": chunk_index,
+                        "tender_or_bid_id": tender_or_bid_id,
                         "metadata": meta,
                     },
                     vector=vector,
@@ -137,28 +141,21 @@ class WeaviateVectorDB(VectorDB):
             where=wvc.query.Filter.by_property("doc_id").contains_any([doc_id])
         )
 
-    def search(self, query_vector: list, top_k: int=10, metadata_filter: Optional[dict] = None) -> list[VectorSearchResult]:
-        """
-        Searches for the top-k closest vectors to the given query vector.
-
-        Args:
-            query_vector: The query vector embedding.
-            top_k: The number of results to return.
-
-        Returns:
-            A list of dictionaries containing the metadata and similarity scores of
-            the top-k results.
-        """
-        # convert the query vector to a list if it's not already
+    def search(self, query_vector: list, top_k: int = 10, metadata_filter: Optional[dict] = None) -> list[
+        VectorSearchResult]:
         if isinstance(query_vector, np.ndarray):
             query_vector = query_vector.tolist()
 
         results: list[VectorSearchResult] = []
+
+        # Perform the vector search
         response = self.collection.query.near_vector(
             near_vector=query_vector,
             limit=top_k,
             return_metadata=wvc.query.MetadataQuery(distance=True),
+            filters=wvc.query.Filter.by_property("tender_or_bid_id").contains_any(metadata_filter.get("value"))
         )
+
         for obj in response.objects:
             results.append(
                 VectorSearchResult(

@@ -1,27 +1,21 @@
 from dsrag.database.vector.db import VectorDB
 from dsrag.database.vector.types import VectorSearchResult, MetadataFilter
-from typing import Optional, List
+from typing import Optional
 import numpy as np
-import os
-from pymilvus import MilvusClient, DataType
-import pprint
-from abc import ABC, abstractmethod
-from sklearn.metrics.pairwise import cosine_similarity
-import pickle
-import weaviate
-import weaviate.classes as wvc
-from weaviate.util import generate_uuid5
+from pymilvus import connections, Collection, FieldSchema, CollectionSchema, DataType, utility
 
-def format_metadata_filter(metadata_filter: MetadataFilter) -> dict:
+
+def format_metadata_filter(metadata_filter: MetadataFilter) -> str:
     """
-    Format the metadata filter to be used in the Pinecone query method.
+    Format the metadata filter to be used in the Milvus search expression.
 
     Args:
-        metadata_filter (MetadataFilter): The metadata filter.
+        metadata_filter (dict): The metadata filter.
 
     Returns:
-        dict: The formatted metadata filter.
+        str: The formatted metadata filter.
     """
+
     field = metadata_filter["field"]
     operator = metadata_filter["operator"]
     value = metadata_filter["value"]
@@ -30,107 +24,150 @@ def format_metadata_filter(metadata_filter: MetadataFilter) -> dict:
         "equals": "==",
         "not_equals": "!=",
         "in": "in",
-        "not_in": "not_in",
+        "not_in": "not in",
         "greater_than": ">",
         "less_than": "<",
         "greater_than_equals": ">=",
         "less_than_equals": "<=",
     }
 
-    formatted_operator = operator_mapping[operator]
-    formatted_metadata_filter = {field: {formatted_operator: value}}
+    formatted_operator = operator_mapping.get(operator)
+    if formatted_operator is None:
+        raise ValueError(f"Unsupported operator '{operator}' in metadata filter.")
 
-    return formatted_metadata_filter
+    if operator in ["in", "not_in"]:
+        if not isinstance(value, list):
+            raise ValueError(f"Value must be a list for operator '{operator}'.")
+        value_str = "[" + ", ".join(f"'{v}'" if isinstance(v, str) else str(v) for v in value) + "]"
+    else:
+        value_str = f"'{value}'" if isinstance(value, str) else str(value)
 
-class BasicVectorDB(VectorDB):
-    def __init__(self, kb_id: str, storage_directory: str = '~/dsRAG', use_faiss: bool = True):
+    expression = f"{field} {formatted_operator} {value_str}"
+    return expression
+
+
+class MilvusDB(VectorDB):
+    def __init__(self, kb_id: str, uri: str, token: str, dim: int = 768):
         self.kb_id = kb_id
-        self.storage_directory = storage_directory
-        self.use_faiss = use_faiss
-        self.vector_storage_path = os.path.join(self.storage_directory, 'vector_storage', f'{kb_id}.pkl')
-        self.load()
+        self.dim = dim
+        connections.connect(uri=uri, token=token)
+        self.collection_name = kb_id
+        self._create_collection_if_not_exists()
 
-    def add_vectors(self, vectors, metadata):
-        try:
-            assert len(vectors) == len(metadata)
-        except AssertionError:
-            raise ValueError('Error in add_vectors: the number of vectors and metadata items must be the same.')
-        self.vectors.extend(vectors)
-        self.metadata.extend(metadata)
-        self.save()
+    def _create_collection_if_not_exists(self):
+        if not utility.has_collection(self.collection_name):
+            fields = [
+                FieldSchema(name="pk", dtype=DataType.VARCHAR, is_primary=True, max_length=100),
+                FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=self.dim),
+                FieldSchema(name="doc_id", dtype=DataType.VARCHAR, max_length=100),
+                FieldSchema(name="chunk_index", dtype=DataType.INT64),
+                FieldSchema(name="tender_or_bid_id", dtype=DataType.VARCHAR)
+            ]
+            schema = CollectionSchema(fields, description="Vector database collection")
+            self.collection = Collection(name=self.collection_name, schema=schema)
+            # Create index
+            index_params = {
+                "metric_type": "COSINE",
+                "index_type": "HNSW",
+                "params": {"M": 8, "efConstruction": 64},
+            }
+            self.collection.create_index(field_name="embedding", index_params=index_params)
+            # Load the collection
+            self.collection.load()
+        else:
+            self.collection = Collection(name=self.collection_name)
+            self.collection.load()
 
-    def search(self, query_vector, top_k=10):
-        if not self.vectors:
+    def get_num_vectors(self):
+        return self.collection.num_entities
+
+    def add_vectors(self, vectors: list, metadata: list):
+        vectors_as_lists = [vector.tolist() if isinstance(vector, np.ndarray) else vector for vector in vectors]
+        if len(vectors_as_lists) != len(metadata):
+            raise ValueError(
+                "Error in add_vectors: the number of vectors and metadata items must be the same."
+            )
+
+        # Create the ids from the metadata, defined as {metadata["doc_id"]}_{metadata["chunk_index"]}
+        ids = [f"{meta['doc_id']}_{meta['chunk_index']}" for meta in metadata]
+
+        # Prepare data for insertion
+        data = {
+            "pk": ids,
+            "embedding": vectors_as_lists,
+            "doc_id": [meta["doc_id"] for meta in metadata],
+            "chunk_index": [meta["chunk_index"] for meta in metadata],
+            "tender_or_bid_id": [meta.get("tender_or_bid_id", "") for meta in metadata]
+        }
+
+        # Convert data to list of lists (columns)
+        data_to_insert = [data[field.name] for field in self.collection.schema.fields]
+
+        # Insert data
+        self.collection.insert(data_to_insert)
+
+    def search(
+        self, query_vector, top_k=10, metadata_filter: Optional[MetadataFilter] = None
+    ) -> list[VectorSearchResult]:
+
+        num_vectors = self.get_num_vectors()
+        if num_vectors == 0:
             return []
 
-        if self.use_faiss:
-            return self.search_faiss(query_vector, top_k)
+        # Prepare search parameters
+        search_params = {"metric_type": "COSINE", "params": {"ef": 64}}
 
-        similarities = cosine_similarity([query_vector], self.vectors)[0]
-        indexed_similarities = sorted(enumerate(similarities), key=lambda x: x[1], reverse=True)
-        results = []
-        for i, similarity in indexed_similarities[:top_k]:
-            result = {
-                'metadata': self.metadata[i],
-                'similarity': similarity,
-            }
-            results.append(result)
+        # Prepare the query vector
+        query_vectors = [query_vector]
+
+        # Specify which fields to return
+        output_fields = ["doc_id", "chunk_index", "tender_or_bid_id"]  # Add other metadata fields if needed
+
+        # Format metadata filter
+        expression = format_metadata_filter(metadata_filter) if metadata_filter else None
+
+        # Perform the search
+        search_results = self.collection.search(
+            data=query_vectors,
+            anns_field="embedding",
+            param=search_params,
+            limit=top_k,
+            expr=expression,
+            output_fields=output_fields,
+        )
+
+        # Process the results
+        results: list[VectorSearchResult] = []
+        for hits in search_results:
+            for hit in hits:
+                similarity = 1 - hit.distance  # Convert distance to similarity
+                metadata = {
+                    "doc_id": hit.entity.get("doc_id"),
+                    "chunk_index": hit.entity.get("chunk_index"),
+                    # Add other metadata fields here
+                }
+                results.append(
+                    VectorSearchResult(
+                        doc_id=metadata["doc_id"],
+                        vector=None,
+                        metadata=metadata,
+                        similarity=similarity,
+                    )
+                )
+
+        # Sort results by similarity in descending order
+        results.sort(key=lambda x: x.similarity, reverse=True)
         return results
 
-    def search_faiss(self, query_vector, top_k=10):
-        from faiss.contrib.exhaustive_search import knn
-        import numpy as np
-
-        # Limit top_k to the number of vectors we have - Faiss doesn't automatically handle this
-        top_k = min(top_k, len(self.vectors))
-
-        # faiss expects 2D arrays of vectors
-        vectors_array = np.array(self.vectors).astype('float32').reshape(len(self.vectors), -1)
-        query_vector_array = np.array(query_vector).astype('float32').reshape(1, -1)
-
-        _, I = knn(query_vector_array, vectors_array, top_k)  # I is a list of indices in the corpus_vectors array
-        results = []
-        for i in I[0]:
-            result = {
-                'metadata': self.metadata[i],
-                'similarity': cosine_similarity([query_vector], [self.vectors[i]])[0][0],
-            }
-            results.append(result)
-        return results
-
-    def remove_document(self, doc_id):
-        i = 0
-        while i < len(self.metadata):
-            if self.metadata[i]['doc_id'] == doc_id:
-                del self.vectors[i]
-                del self.metadata[i]
-            else:
-                i += 1
-        self.save()
-
-    def save(self):
-        os.makedirs(os.path.dirname(self.vector_storage_path), exist_ok=True)  # Ensure the directory exists
-        with open(self.vector_storage_path, 'wb') as f:
-            pickle.dump((self.vectors, self.metadata), f)
-
-    def load(self):
-        if os.path.exists(self.vector_storage_path):
-            with open(self.vector_storage_path, 'rb') as f:
-                self.vectors, self.metadata = pickle.load(f)
-        else:
-            self.vectors = []
-            self.metadata = []
+    def remove_document(self, doc_id: str):
+        expression = f"doc_id == '{doc_id}'"
+        self.collection.delete(expr=expression)
 
     def delete(self):
-        if os.path.exists(self.vector_storage_path):
-            os.remove(self.vector_storage_path)
+        self.collection.drop()
 
     def to_dict(self):
         return {
             **super().to_dict(),
-            'kb_id': self.kb_id,
-            'storage_directory': self.storage_directory,
-            'use_faiss': self.use_faiss,
+            "kb_id": self.kb_id,
         }
-
-
