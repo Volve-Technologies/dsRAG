@@ -77,7 +77,7 @@ class WeaviateVectorDB(VectorDB):
 
             self.client = weaviate.connect_to_wcs(
                 cluster_url=self.http_host,
-                auth_credentials=weaviate.auth.AuthApiKey(self.weaviate_secret))
+                auth_credentials=weaviate.auth.AuthApiKey(self.weaviate_secret), skip_init_checks=True)
 
         self.client.connect()
         self.collection_name = "dsrag_test"

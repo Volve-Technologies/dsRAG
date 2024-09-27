@@ -228,6 +228,8 @@ class PostgresDB(ChunkDB):
         self.put_connection(conn)
         if result:
             return result
+        else:
+            logging.error(f"NONE: SELECT chunk_page_start, chunk_page_end FROM documents WHERE doc_id={doc_id} AND chunk_index={chunk_index}")
         return None
 
     def get_document_title(self, doc_id: str, chunk_index: int) -> Optional[str]:
