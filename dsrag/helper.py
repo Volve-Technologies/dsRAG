@@ -51,15 +51,15 @@ def rerank_documents(query: str, documents: list) -> list:
 
     return similarity_scores, chunk_values
 
-def get_context(query: List[str], kb: KnowledgeBase, metadata_filter: MetadataFilter):
+def get_context(query: List[str], kb: KnowledgeBase, metadata_filter: MetadataFilter,
+                rse_params=None):
+    if rse_params is None:
+        rse_params = {"max_length": 300, "overall_max_length": 500, "minimum_value": 0.01,
+                      "irrelevant_chunk_penalty": 0.0}
     context = ""
     doc_ids = set()
     results = kb.query(query,
-                       rse_params={
-                           "max_length": 300,
-                           "overall_max_length": 700,
-                           "minimum_value": 0.01,
-                           "irrelevant_chunk_penalty": 0},
+                       rse_params=rse_params,
                        metadata_filter=metadata_filter
                        )
     for result in results:

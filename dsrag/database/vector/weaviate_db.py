@@ -5,6 +5,7 @@ import numpy as np
 from typing import Optional
 import weaviate
 import weaviate.classes as wvc
+from weaviate.config import ConnectionConfig, AdditionalConfig
 from weaviate.util import generate_uuid5
 from dsrag.database.vector.types import MetadataFilter
 import logging
@@ -77,7 +78,14 @@ class WeaviateVectorDB(VectorDB):
 
             self.client = weaviate.connect_to_wcs(
                 cluster_url=self.http_host,
-                auth_credentials=weaviate.auth.AuthApiKey(self.weaviate_secret), skip_init_checks=True)
+                auth_credentials=weaviate.auth.AuthApiKey(self.weaviate_secret), skip_init_checks=False, additional_config=AdditionalConfig(
+                connection=ConnectionConfig(
+                    session_pool_connections=30,
+                    session_pool_maxsize=200,
+                    session_pool_max_retries=3,
+                ),
+                timeout=(60,180)
+            ),)
 
         self.client.connect()
         self.collection_name = "dsrag_test"
