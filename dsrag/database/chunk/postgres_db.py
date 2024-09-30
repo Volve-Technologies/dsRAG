@@ -339,6 +339,17 @@ class PostgresDB(ChunkDB):
         conn.close()
         self.put_connection(conn)
 
+
+    def get_all_documents(self, tender_or_bid_id):
+        conn = self.get_connection()
+        c = conn.cursor()
+        query = """ SELECT * FROM documents WHERE (REPLACE(metadata, '''', '"')::JSONB)->>'tender_or_bid_id' = %s; """
+        c.execute(query, (tender_or_bid_id,))
+        results = c.fetchall()
+        conn.close()
+        self.put_connection(conn)
+        return results
+
     def to_dict(self) -> dict[str, str]:
         return {
             **super().to_dict(),

@@ -23,6 +23,35 @@ Section titles should be descriptive enough such that a person who is just skimm
 Note: the document provided to you may just be an excerpt from a larger document, rather than a complete document. Therefore, you can't always assume, for example, that the first line of the document is the beginning of the Introduction section and the last line is the end of the Conclusion section (if those section are even present).
 """
 
+NEW_SYSTEM_PROMPT = """
+Your task is to extract structured sections from the document based on topics or concepts. The sections should reflect the natural structure of the document. Each section must have a clear, descriptive title.
+
+The sections you should be looking for include:
+1. Project Overview
+2. Scope of Work
+3. Technical Requirements
+4. Cost Breakdown
+5. Timeline and Phases
+6. Compliance Requirements
+7. Risk and Safety
+8. Bidder Information
+
+Every section should include its starting line number. Your sections MUST cover the entire document. The section titles should be clear and descriptive.
+
+Make sure each section title gives a clear idea of the section’s content, like “Cost Breakdown for Bidder X” or “Scope of Work: Phase 1 - Design.”
+
+The first section must always start at the first line of the document ({start_line}).
+
+Example output:
+- Section Title: "Project Overview"
+  - Start Line: 1
+- Section Title: "Scope of Work"
+  - Start Line: 12
+- Section Title: "Technical Requirements"
+  - Start Line: 35
+"""
+
+
 LANGUAGE_ADDENDUM = "For your section titles, YOU MUST use the same language as the document. If the document is in English, your section titles should be in English. If the document is in another language, your section titles should be in that language."
 
 

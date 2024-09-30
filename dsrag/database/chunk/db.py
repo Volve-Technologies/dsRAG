@@ -105,6 +105,10 @@ class ChunkDB(ABC):
         pass
 
     @abstractmethod
+    def get_all_documents(self, tender_or_bid_id: str):
+        pass
+
+    @abstractmethod
     def delete(self) -> None:
         """
         Delete the chunk database.

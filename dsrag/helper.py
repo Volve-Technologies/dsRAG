@@ -5,13 +5,15 @@ sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
 import cohere
 import os
 from typing import List
+import logging
 
 from dsrag.database.vector.types import MetadataFilter
 from dsrag.knowledge_base import KnowledgeBase
 from dsrag.rse import get_best_segments
 from dsrag.llm import AnthropicChatAPI, OpenAIChatAPI
 from dsrag.reranker import CohereReranker
-from shared.database.get_databases import get_chunk_db, get_weaviate_db
+from dsrag.database.vector.weaviate_db import WeaviateVectorDB
+from dsrag.database.chunk.postgres_db import PostgresDB
 from scipy.stats import beta
 from dotenv import load_dotenv
 import numpy as np
@@ -50,6 +52,16 @@ def rerank_documents(query: str, documents: list) -> list:
         chunk_values[index] = v
 
     return similarity_scores, chunk_values
+
+def get_weaviate_db(kb_id: str):
+    db = WeaviateVectorDB(kb_id=kb_id, http_host=os.getenv("WEAVIATE_HTTP_HOST"),
+                          http_secure=True, grpc_host=os.getenv("WEAVIATE_GRPC_HOST"),
+                          grpc_secure=True, weaviate_secret=os.getenv("WEAVIATE_API_KEY"))
+    return db
+
+def get_chunk_db(kb_id: str):
+    connection_string = os.getenv("PG_CONN_STRING")
+    return PostgresDB(kb_id=kb_id, connection_string=connection_string)
 
 def get_context(query: List[str], kb: KnowledgeBase, metadata_filter: MetadataFilter,
                 rse_params=None):

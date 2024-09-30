@@ -109,7 +109,9 @@ class KnowledgeBase:
             if vector_db
             else BasicVectorDB(self.kb_id, self.storage_directory)
         )
-        self.chunk_db = chunk_db
+        self.chunk_db = (
+            chunk_db if chunk_db else BasicChunkDB(self.kb_id, self.storage_directory)
+        )
         self.vector_dimension = self.embedding_model.dimension
 
     def save(self):
@@ -468,6 +470,10 @@ class KnowledgeBase:
         segment = self.chunk_db.get_chunk_text_range(doc_id, chunk_start, chunk_end)
         logging.debug(f"Obtained the chunk range, uuid: {random_uuid}")
         return segment.strip()
+
+    def get_all_documents_with_tender_bid_id(self, tender_or_bid_id: str):
+        results = self.chunk_db.get_all_documents(tender_or_bid_id)
+        return results
 
     def query(
         self,
