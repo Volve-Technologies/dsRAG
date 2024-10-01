@@ -5,6 +5,7 @@ import numpy as np
 from typing import Optional
 import weaviate
 import weaviate.classes as wvc
+from sympy.physics.units import weber
 from weaviate.config import ConnectionConfig, AdditionalConfig
 from weaviate.util import generate_uuid5
 from dsrag.database.vector.types import MetadataFilter
@@ -23,10 +24,10 @@ class WeaviateVectorDB(VectorDB):
         self,
         kb_id: str,
         http_host="localhost",
-        http_port="8099",
+        http_port=8099,
         http_secure=False,
         grpc_host="localhost",
-        grpc_port="50052",
+        grpc_port=50052,
         grpc_secure=False,
         weaviate_secret="secr3tk3y",
         init_timeout: int = 2,
@@ -75,16 +76,14 @@ class WeaviateVectorDB(VectorDB):
                 additional_headers=additional_headers,
             )
         else:
-
             self.client = weaviate.connect_to_wcs(
                 cluster_url=self.http_host,
-                auth_credentials=weaviate.auth.AuthApiKey(self.weaviate_secret), skip_init_checks=False, additional_config=AdditionalConfig(
+                auth_credentials=weaviate.auth.AuthApiKey(self.weaviate_secret), skip_init_checks=True, additional_config=AdditionalConfig(
                 connection=ConnectionConfig(
-                    session_pool_connections=30,
-                    session_pool_maxsize=200,
+                    session_pool_connections=100,
+                    session_pool_maxsize=500,
                     session_pool_max_retries=3,
-                ),
-                timeout=(60,180)
+                )
             ),)
 
         self.client.connect()
