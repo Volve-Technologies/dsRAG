@@ -1,9 +1,12 @@
 from pydantic import BaseModel, Field
+import os
+from dotenv import load_dotenv
 from typing import List, Dict, Any
 from anthropic import Anthropic
-from openai import OpenAI
+from openai import OpenAI, AzureOpenAI
 import instructor
 
+load_dotenv()
 
 class Section(BaseModel):
     title: str = Field(description="main topic of this section of the document (very descriptive)")
@@ -68,9 +71,13 @@ def get_structured_document(document_with_line_numbers: str, start_line: int, en
             ],
         )
     elif llm_provider == "openai":
-        client = instructor.from_openai(OpenAI())
+        client = instructor.from_openai(AzureOpenAI(
+            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+            api_version=os.getenv("AZURE_OPENAI_API_VERSION")
+        ))
         return client.chat.completions.create(
-            model=model,
+            model=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
             response_model=StructuredDocument,
             max_tokens=4000,
             temperature=0.0,

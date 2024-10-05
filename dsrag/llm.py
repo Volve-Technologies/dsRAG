@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
 import os
 import ollama
+from dotenv import load_dotenv
 
+load_dotenv()
 
 class LLM(ABC):
     subclasses = {}
@@ -38,21 +40,28 @@ class OpenAIChatAPI(LLM):
         self.max_tokens = max_tokens
 
     def make_llm_call(self, chat_messages: list[dict]) -> str:
-        from openai import OpenAI
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        from openai import OpenAI, AzureOpenAI
+        #client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        client = AzureOpenAI(
+            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+            api_version=os.getenv("AZURE_OPENAI_API_VERSION")
+        )
         response = client.chat.completions.create(
-            model=self.model,
+            model=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
             messages=chat_messages,
             max_tokens=self.max_tokens,
             temperature=self.temperature,
         )
+        if response.choices[0].message.content is None:
+            return ""
         llm_output = response.choices[0].message.content.strip()
         return llm_output
     
     def to_dict(self):
         base_dict = super().to_dict()
         base_dict.update({
-            'model': self.model,
+            'model': os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
             'temperature': self.temperature,
             'max_tokens': self.max_tokens
         })
