@@ -14,6 +14,7 @@ from dsrag.llm import AnthropicChatAPI, OpenAIChatAPI
 from dsrag.reranker import CohereReranker
 from dsrag.database.vector.weaviate_db import WeaviateVectorDB
 from dsrag.database.chunk.postgres_db import PostgresDB
+from dsrag.database.vector.qdrant_db import QdrantVectorDB
 from scipy.stats import beta
 from dotenv import load_dotenv
 import numpy as np
@@ -59,6 +60,12 @@ def get_weaviate_db(kb_id: str):
                           grpc_secure=True, weaviate_secret=os.getenv("WEAVIATE_API_KEY"))
     return db
 
+def get_qdrant_db():
+    db = QdrantVectorDB(kb_id=os.getenv("QDRANT_CLUSTER_NAME"),
+                        url=os.getenv("QDRANT_URL"),
+                        api_key=os.getenv("QDRANT_API_KEY"))
+    return db
+
 def get_chunk_db(kb_id: str):
     connection_string = os.getenv("PG_CONN_STRING")
     return PostgresDB(kb_id=kb_id, connection_string=connection_string)
@@ -84,7 +91,7 @@ def get_kb_non_english(kb_id, language: str):
     reranker = CohereReranker(model="rerank-multilingual-v3.0")
     #llm = AnthropicChatAPI(model="claude-3-5-sonnet-20240620", max_tokens=4000)
     llm = OpenAIChatAPI(temperature=0.3, max_tokens=4000)
-    vector = get_weaviate_db(kb_id)
+    vector = get_qdrant_db()
     postgres = get_chunk_db(kb_id)
     kb = KnowledgeBase(kb_id, vector_db=vector, chunk_db=postgres, auto_context_model=llm, language=language, reranker=reranker, save_metadata_to_disk=False)
     #kb = KnowledgeBase(kb_id, vector_db=None, chunk_db=postgres, language=language, reranker=reranker,
