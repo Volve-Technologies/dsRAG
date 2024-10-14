@@ -152,6 +152,18 @@ class QdrantVectorDB(VectorDB):
             ),
         )
 
+    def _delete_by_tender_bid_id(self, tender_or_bid_id: str):
+        self.client.delete(
+            self.kb_id,
+            models.Filter(
+                must=[
+                    models.FieldCondition(
+                        key="tender_or_bid_id", match=models.MatchValue(value=tender_or_bid_id)
+                    )
+                ]
+            ),
+        )
+
     def search(
         self,
         query_vector: list,
