@@ -192,6 +192,7 @@ class QdrantVectorDB(VectorDB):
             query_filter=qdrant_filter,
             with_payload=True,
             with_vectors=True,
+            timeout=60
         ).points
         for point in response:
             results.append(

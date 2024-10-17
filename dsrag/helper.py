@@ -63,7 +63,8 @@ def get_weaviate_db(kb_id: str):
 def get_qdrant_db():
     db = QdrantVectorDB(kb_id=os.getenv("QDRANT_CLUSTER_NAME"),
                         url=os.getenv("QDRANT_URL"),
-                        api_key=os.getenv("QDRANT_API_KEY"))
+                        api_key=os.getenv("QDRANT_API_KEY"),
+                        timeout=30)
     return db
 
 def get_chunk_db(kb_id: str):
