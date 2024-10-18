@@ -464,10 +464,11 @@ class KnowledgeBase:
     def get_segment_text_from_database(
         self, doc_id: str, chunk_start: int, chunk_end: int
     ) -> str:
-        segment = f"{self.get_segment_header(doc_id=doc_id, chunk_index=chunk_start)}\n\n"
         random_uuid = uuid.uuid4()
-        logging.debug(f"About to get the actual chunk range from the postgresql, uuid: {random_uuid}")
+        s = time.time()
         segment = self.chunk_db.get_chunk_text_range(doc_id, chunk_start, chunk_end)
+        e = time.time()
+        #logging.warning(f"Segment time: {e - s} seconds")
         logging.debug(f"Obtained the chunk range, uuid: {random_uuid}")
         return segment.strip()
 
@@ -545,6 +546,8 @@ class KnowledgeBase:
             all_ranked_results=all_ranked_results,
             top_k_for_document_selection=top_k_for_document_selection,
         )
+        end_time = time.time()
+        logging.warning(f"Vector search: {end_time - start_time} seconds")
 
 
         # verify that we have a valid meta-document - otherwise return an empty list of segments
@@ -591,6 +594,7 @@ class KnowledgeBase:
             relevant_segment_info[-1]["score"] = score
 
         # retrieve the actual text (including segment header) for each of the segments
+        start_time = time.time()
         for segment_info in relevant_segment_info:
             segment_info["text"] = self.get_segment_text_from_database(
                 segment_info["doc_id"],
@@ -598,13 +602,15 @@ class KnowledgeBase:
                 segment_info["chunk_end"],
             )
 
-            start_page_number, end_page_number = self.get_segment_page_numbers(
-                segment_info["doc_id"],
-                segment_info["chunk_start"],
-                segment_info["chunk_end"]
-            )
+            #start_page_number, end_page_number = self.get_segment_page_numbers(
+            #    segment_info["doc_id"],
+            #    segment_info["chunk_start"],
+            #    segment_info["chunk_end"]
+            #)
 
-            segment_info["chunk_page_start"] = start_page_number
-            segment_info["chunk_page_end"] = end_page_number
+            segment_info["chunk_page_start"] = 0 #start_page_number
+            segment_info["chunk_page_end"] = 0 #end_page_number
+        end_time = time.time()
+        logging.warning(f"DB time: {end_time - start_time} seconds")
 
         return relevant_segment_info
