@@ -37,6 +37,7 @@ def get_document_lines(document: str) -> List[str]:
 def get_document_with_lines(document_lines: List[str], start_line: int, max_characters: int) -> str:
     document_with_line_numbers = ""
     character_count = 0
+    end_line = None
     for i in range(start_line, len(document_lines)):
         line = document_lines[i]
         document_with_line_numbers += f"[{i}] {line}\n"
@@ -136,6 +137,8 @@ def get_sections(document: str, max_characters: int = 20000, llm_provider: str =
     all_sections = []
     for _ in range(max_iterations):
         document_with_line_numbers, end_line = get_document_with_lines(document_lines, start_line, max_characters)
+        if end_line is None:
+            continue
         structured_doc = get_structured_document(document_with_line_numbers, start_line, end_line, llm_provider=llm_provider, model=model, language=language)
         new_sections = structured_doc.sections
         all_sections.extend(new_sections)
