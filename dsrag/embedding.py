@@ -2,11 +2,13 @@ import os
 from abc import ABC, abstractmethod
 from typing import Optional
 from dsrag.database.vector.types import Vector
-from openai import OpenAI
+from openai import OpenAI, AzureOpenAI
 import cohere
 import voyageai
 import ollama
+from dotenv import load_dotenv
 
+load_dotenv()
 
 dimensionality = {
     "embed-english-v3.0": 1024,
@@ -53,6 +55,31 @@ class Embedding(ABC):
 
 
 class OpenAIEmbedding(Embedding):
+    def __init__(self, model: str = "text-embedding-3-small", dimension: int = 768):
+        """
+        Only v3 models are supported.
+        """
+        super().__init__(dimension)
+        self.model = os.getenv("AZURE_OPENAI_EMBEDDING_NAME")
+        self.client = AzureOpenAI(
+            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+            api_version=os.getenv("AZURE_OPENAI_API_VERSION")
+        )
+
+    def get_embeddings(self, text: list[str], input_type: Optional[str] = None) -> list[Vector]:
+        response = self.client.embeddings.create(
+            input=text, model=self.model, dimensions=self.dimension
+        )
+        embeddings = [embedding_item.embedding for embedding_item in response.data]
+        return embeddings[0] if isinstance(text, str) else embeddings
+
+    def to_dict(self):
+        base_dict = super().to_dict()
+        base_dict.update({"model": self.model})
+        return base_dict
+
+class OpenAIPlatformEmbedding(Embedding):
     def __init__(self, model: str = "text-embedding-3-small", dimension: int = 768):
         """
         Only v3 models are supported.
