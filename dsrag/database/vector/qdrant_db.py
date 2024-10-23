@@ -119,6 +119,9 @@ class QdrantVectorDB(VectorDB):
             chunk_index = meta.get("chunk_index", 0)
             uuid = convert_id(f"{doc_id}_{chunk_index}")
             tender_or_bid_id = meta.get("tender_or_bid_id", "")
+            external_kb = meta.get("external_kb", "false")
+            external_kb_region = meta.get("external_kb_region", "")
+            external_kb_type = meta.get("external_kb_type", "")
             points.append(
                 models.PointStruct(
                     id=uuid,
@@ -129,6 +132,9 @@ class QdrantVectorDB(VectorDB):
                         "chunk_index": chunk_index,
                         "tender_or_bid_id": tender_or_bid_id,
                         "metadata": meta,
+                        "external_kb": external_kb,
+                        "external_kb_region": external_kb_region,
+                        "external_kb_type": external_kb_type
                     },
                 )
             )
