@@ -29,7 +29,6 @@ requires-python = ">=3.9"
 dynamic = ["dependencies"]
 
 [tool.setuptools.dynamic]
-dependencies = {file = ["requirements.txt"]}
 
 [project.urls]
 Homepage = "https://github.com/D-Star-AI/dsRAG"
