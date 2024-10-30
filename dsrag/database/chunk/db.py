@@ -114,3 +114,6 @@ class ChunkDB(ABC):
         Delete the chunk database.
         """
         pass
+
+    def get_document_filename(self, tender_or_bid_id: str):
+        pass
