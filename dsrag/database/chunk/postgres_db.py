@@ -356,17 +356,17 @@ class PostgresDB(ChunkDB):
             "kb_id": self.kb_id,
         }
     
-    def get_document_filename(self, tender_or_bid_id: str) -> Optional[str]:
+    def get_document_filename(self, doc_id: str) -> Optional[str]:
         conn = self.get_connection()
         c = conn.cursor()
         query = """
             SELECT (REPLACE(metadata, '''', '"')::JSONB)->>'document_filename'
             FROM documents 
-            WHERE (REPLACE(metadata, '''', '"')::JSONB)->>'tender_or_bid_id' = %s 
+            WHERE doc_id = %s 
             LIMIT 1;
         """
         try:
-            c.execute(query, (tender_or_bid_id,))
+            c.execute(query, (doc_id,))
             result = c.fetchone()
             return result[0] if result else None
         finally:
