@@ -83,7 +83,7 @@ def get_context(query: List[str], kb: KnowledgeBase, metadata_filter: MetadataFi
                        metadata_filter=metadata_filter
                        )
     for result in results:
-        context += f"[doc_id={result['doc_id']}]: " + result["text"]
+        context += f"\n [doc_id={result['doc_id']}]: " + result["text"]
         doc_id = result["doc_id"]
         doc_ids.add(str(doc_id))
     return context, doc_ids
