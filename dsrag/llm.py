@@ -2,6 +2,9 @@ from abc import ABC, abstractmethod
 import os
 import ollama
 from dotenv import load_dotenv
+from openai import RateLimitError
+import logging
+from tenacity import retry, wait_exponential_jitter, retry_if_exception_type, stop_after_delay
 
 load_dotenv()
 
@@ -39,6 +42,14 @@ class OpenAIChatAPI(LLM):
         self.temperature = temperature
         self.max_tokens = max_tokens
 
+    @retry(
+        retry=retry_if_exception_type(RateLimitError),
+        wait=wait_exponential_jitter(initial=1, max=60),
+        stop=stop_after_delay(3600),
+        before_sleep=lambda retry_state: logging.warning(
+            f"Rate limit exceeded for make_llm_call. Retrying in {retry_state.next_action.sleep} seconds..."
+        ),
+    )
     def make_llm_call(self, chat_messages: list[dict]) -> str:
         from openai import OpenAI, AzureOpenAI
         #client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
