@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from typing import List, Dict, Any
 from anthropic import Anthropic
 from openai import OpenAI, AzureOpenAI
+from tenacity import retry, wait_fixed, wait_random, stop_after_attempt
 import instructor
 
 load_dotenv()
@@ -47,6 +48,7 @@ def get_document_with_lines(document_lines: List[str], start_line: int, max_char
             break
     return document_with_line_numbers, end_line
 
+@retry(wait=wait_fixed(5) + wait_random(0, 20), stop=stop_after_attempt(50))
 def get_structured_document(document_with_line_numbers: str, start_line: int, end_line: int, llm_provider: str, model: str, language: str) -> StructuredDocument:
     """
     Note: This function relies on Instructor, which only supports certain model providers. That's why this function doesn't use the LLM abstract base class that is used elsewhere in the project.
