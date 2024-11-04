@@ -3,8 +3,9 @@ import os
 from dotenv import load_dotenv
 from typing import List, Dict, Any
 from anthropic import Anthropic
-from openai import OpenAI, AzureOpenAI
-from tenacity import retry, wait_fixed, wait_random, stop_after_attempt
+from openai import OpenAI, AzureOpenAI, RateLimitError
+from tenacity import retry, wait_exponential_jitter, retry_if_exception_type, stop_after_attempt
+import logging
 import instructor
 
 load_dotenv()
@@ -48,7 +49,14 @@ def get_document_with_lines(document_lines: List[str], start_line: int, max_char
             break
     return document_with_line_numbers, end_line
 
-@retry(wait=wait_fixed(5) + wait_random(0, 20), stop=stop_after_attempt(50))
+@retry(
+    retry=retry_if_exception_type(RateLimitError),
+    wait=wait_exponential_jitter(initial=1, max=60),
+    stop=stop_after_attempt(10),
+    before_sleep=lambda retry_state: logging.warning(
+        f"Rate limit exceeded. Retrying in {retry_state.next_action.sleep} seconds..."
+    ),
+)
 def get_structured_document(document_with_line_numbers: str, start_line: int, end_line: int, llm_provider: str, model: str, language: str) -> StructuredDocument:
     """
     Note: This function relies on Instructor, which only supports certain model providers. That's why this function doesn't use the LLM abstract base class that is used elsewhere in the project.
