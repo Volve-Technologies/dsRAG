@@ -8,7 +8,7 @@ import voyageai
 import ollama
 from dotenv import load_dotenv
 import logging
-from tenacity import retry, retry_if_exception_type, wait_exponential_jitter, stop_after_attempt
+from tenacity import retry, retry_if_exception_type, wait_exponential_jitter, stop_after_delay
 
 load_dotenv()
 
@@ -72,9 +72,9 @@ class OpenAIEmbedding(Embedding):
     @retry(
         retry=retry_if_exception_type(RateLimitError),
         wait=wait_exponential_jitter(initial=1, max=60),
-        stop=stop_after_attempt(10),
+        stop=stop_after_delay(3600),
         before_sleep=lambda retry_state: logging.warning(
-            f"Rate limit exceeded. Retrying in {retry_state.next_action.sleep} seconds..."
+            f"Rate limit exceeded for Embedding. Retrying in {retry_state.next_action.sleep} seconds..."
         ),
     )
     def get_embeddings(self, text: list[str], input_type: Optional[str] = None) -> list[Vector]:
