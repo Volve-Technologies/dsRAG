@@ -2,11 +2,13 @@ import os
 from abc import ABC, abstractmethod
 from typing import Optional
 from dsrag.database.vector.types import Vector
-from openai import OpenAI, AzureOpenAI
+from openai import OpenAI, AzureOpenAI, RateLimitError
 import cohere
 import voyageai
 import ollama
 from dotenv import load_dotenv
+import logging
+from tenacity import retry, retry_if_exception_type, wait_exponential_jitter, stop_after_attempt
 
 load_dotenv()
 
@@ -67,6 +69,14 @@ class OpenAIEmbedding(Embedding):
             api_version=os.getenv("AZURE_OPENAI_API_VERSION")
         )
 
+    @retry(
+        retry=retry_if_exception_type(RateLimitError),
+        wait=wait_exponential_jitter(initial=1, max=60),
+        stop=stop_after_attempt(10),
+        before_sleep=lambda retry_state: logging.warning(
+            f"Rate limit exceeded. Retrying in {retry_state.next_action.sleep} seconds..."
+        ),
+    )
     def get_embeddings(self, text: list[str], input_type: Optional[str] = None) -> list[Vector]:
         response = self.client.embeddings.create(
             input=text, model=self.model, dimensions=self.dimension
