@@ -122,6 +122,8 @@ class QdrantVectorDB(VectorDB):
             external_kb = meta.get("external_kb", "false")
             external_kb_region = meta.get("external_kb_region", "")
             external_kb_type = meta.get("external_kb_type", "")
+            document_type = meta.get("document_type", "")
+            type_id = meta.get("type_id", "")
             points.append(
                 models.PointStruct(
                     id=uuid,
@@ -134,7 +136,9 @@ class QdrantVectorDB(VectorDB):
                         "metadata": meta,
                         "external_kb": external_kb,
                         "external_kb_region": external_kb_region,
-                        "external_kb_type": external_kb_type
+                        "external_kb_type": external_kb_type,
+                        "document_type": document_type,
+                        "type_id": type_id
                     },
                 )
             )
